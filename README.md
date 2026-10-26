@@ -27,18 +27,22 @@ Change this in Settings → General.
 
 ## Install
 
-Builds are **unsigned** (no Apple Developer account), so macOS would block them as coming from an unidentified
-developer. `scripts/install.sh` installs a release and clears the quarantine flag for you:
+One line in Terminal installs the latest release:
 
 ```sh
-scripts/install.sh                          # latest release
-scripts/install.sh v1.0.0                   # a specific release
-scripts/install.sh ~/Downloads/NotchDeck-1.0.0.dmg   # a DMG you already downloaded
+curl -fsSL https://raw.githubusercontent.com/salomohutapea/NotchDeck/main/scripts/install.sh | bash
 ```
 
-It downloads with the GitHub CLI when installed (`gh auth login`), otherwise with curl, verifies the `.sha256` next to a
-local DMG when present, quits the running copy, installs to `/Applications` (or `~/Applications` on a standard
-account), removes `com.apple.quarantine` and launches the app.
+Builds are **unsigned** (no Apple Developer account), so macOS would block them as coming from an unidentified
+developer. The script downloads the DMG, checks it against its published `.sha256`, quits a running copy, installs to
+`/Applications` (or `~/Applications` on a standard account), removes the `com.apple.quarantine` flag and launches the app.
+
+A specific version, or a DMG you already downloaded (from a clone of this repo):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/salomohutapea/NotchDeck/main/scripts/install.sh | bash -s -- v1.1.0
+scripts/install.sh ~/Downloads/NotchDeck-1.1.0.dmg
+```
 
 To do it by hand: download `NotchDeck-<version>.dmg` from [Releases](https://github.com/salomohutapea/NotchDeck/releases),
 drag NotchDeck to Applications, then either click Open Anyway in System Settings > Privacy & Security or run:

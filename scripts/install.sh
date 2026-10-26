@@ -6,8 +6,11 @@
 #   scripts/install.sh NotchDeck-1.0.0.dmg install from a DMG you already have
 #   scripts/install.sh NotchDeck.app       install an app bundle you already have
 #
-# Downloads use the GitHub CLI (`gh`, signed in) when it is installed, which also works for a private
-# fork; otherwise plain curl against the public GitHub API. Installs to /Applications, or to
+# Can also run straight from GitHub:
+#   curl -fsSL https://raw.githubusercontent.com/salomohutapea/NotchDeck/main/scripts/install.sh | bash
+#   curl -fsSL .../scripts/install.sh | bash -s -- v1.1.0
+# Downloads with curl from the public release URLs, falling back to a signed-in GitHub CLI (`gh`)
+# for private forks. The DMG is checked against its published .sha256. Installs to /Applications, or to
 # ~/Applications when /Applications is not writable (standard accounts).
 # NOTCHDECK_INSTALL_DIR overrides the target folder; NOTCHDECK_NO_OPEN=1 skips launching.
 set -euo pipefail
@@ -27,19 +30,28 @@ die() { echo "error: $*" >&2; exit 1; }
 
 download() {
   local tag="$1"
-  echo "Downloading ${tag:-latest release} from $REPO..."
-  if command -v gh >/dev/null 2>&1; then
-    # `gh release download` without a tag takes the latest release.
-    gh release download ${tag:+"$tag"} -R "$REPO" -p "NotchDeck-*.dmg" -D "$WORK" \
-      || die "download failed (signed in to gh with access to $REPO? try: gh auth login)"
+  echo "Downloading NotchDeck ${tag:-(latest release)} from $REPO..."
+  # Public repository: release web URLs (no API calls, so no anonymous rate limit).
+  if [ -z "$tag" ]; then
+    tag="$(curl -fsSI "https://github.com/$REPO/releases/latest" 2>/dev/null \
+           | tr -d '\r' | sed -n 's|^[Ll]ocation: .*/releases/tag/\(v[^/]*\)$|\1|p' | tail -1 || true)"
+  fi
+  local ok=""
+  if [ -n "$tag" ]; then
+    local name="NotchDeck-${tag#v}.dmg" base="https://github.com/$REPO/releases/download/$tag"
+    if curl -fsSL -o "$WORK/$name" "$base/$name" 2>/dev/null; then
+      ok=1
+      curl -fsSL -o "$WORK/$name.sha256" "$base/$name.sha256" 2>/dev/null || rm -f "$WORK/$name.sha256"
+    fi
+  fi
+  if [ -n "$ok" ]; then
+    :
+  elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    # Private fork: release URLs need sign-in, so use the signed-in GitHub CLI.
+    gh release download ${tag:+"$tag"} -R "$REPO" -p "NotchDeck-*.dmg*" -D "$WORK" \
+      || die "download failed (does your gh account have access to $REPO?)"
   else
-    local api="https://api.github.com/repos/$REPO/releases/${tag:+tags/$tag}"
-    [ -n "$tag" ] || api="${api}latest"
-    local url
-    url="$(curl -fsSL "$api" | grep -o '"browser_download_url": *"[^"]*NotchDeck-[^"]*\.dmg"' | head -1 | sed 's/.*"\(http[^"]*\)"/\1/')" \
-      || die "could not read the release from GitHub (private repository? install gh and sign in)"
-    [ -n "$url" ] || die "no DMG found in the release"
-    curl -fL --progress-bar -o "$WORK/$(basename "$url")" "$url"
+    die "could not find a release of $REPO${tag:+ tagged $tag} (private repository? sign in with: gh auth login)"
   fi
   DMG="$(ls "$WORK"/NotchDeck-*.dmg 2>/dev/null | head -1)"
   [ -n "$DMG" ] || die "no DMG downloaded"
