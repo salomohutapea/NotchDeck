@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+defaults:
+  run:
+    shell: bash   # -eo pipefail, so a failing xcodebuild is not hidden by `| tail`
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build (Debug)
+        run: |
+          xcodebuild -project NotchDeck.xcodeproj -scheme NotchDeck -configuration Debug \
+            -derivedDataPath build/dd -destination 'generic/platform=macOS' \
+            CODE_SIGN_IDENTITY=- build | tail -20
+      - name: Shell scripts parse
+        run: |
+          for f in NotchDeck/Resources/*.sh scripts/*.sh; do sh -n "$f" && echo "ok $f"; done
+
+  dmg:
+    # Dry run of the release build so packaging problems show up before tagging.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: scripts/make-dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NotchDeck-dmg
+          path: dist/*.dmg
+          retention-days: 7

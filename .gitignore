@@ -1,0 +1,6 @@
+NotchDeck.xcodeproj
+/build/
+DerivedData/
+.DS_Store
+xcuserdata/
+dist/
